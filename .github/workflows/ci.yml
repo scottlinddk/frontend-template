@@ -47,6 +47,28 @@ jobs:
           retention-days: 7
 
   # @template-start
+  # The demo site is a production build served by MSW mocks. This job smoke-tests
+  # that artifact with the same specs, so a green run means the deployed demo works.
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Pinned to the immutable v1.22.0 release. Never use the moving v1 tag.
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run e2e
+        env:
+          E2E_TARGET: demo
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-demo
+          path: playwright-report
+          retention-days: 7
+
   # Scaffolds the template with every auth option and verifies the result.
   init:
     runs-on: ubuntu-latest

@@ -157,6 +157,9 @@ write(
 );
 
 // 3. Deploy target. Vercel only reads vercel.json from the project root.
+// The root one belongs to the template's demo site, so drop it first.
+remove("vercel.json");
+remove(".env.demo");
 if (deploy !== "hetzner") renameSync(path("deploy/vercel/vercel.json"), path("vercel.json"));
 remove("deploy/vercel");
 if (deploy === "vercel") {
@@ -174,6 +177,7 @@ write("README.md", projectReadme({ title, name, auth, deploy }));
 const pkg = JSON.parse(read("package.json"));
 pkg.name = name;
 delete pkg.scripts.init;
+delete pkg.scripts["build:demo"];
 write("package.json", `${JSON.stringify(pkg, null, 2)}\n`);
 
 // 5. Remove the dependencies of removed adapters, then format.
