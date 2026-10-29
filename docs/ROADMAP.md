@@ -8,6 +8,7 @@
 - **Patterns from past projects:** Danish-first i18n, light/dark theme, route progress and error boundaries, shared `queryClient`, `HttpError`.
 - **OpenAPI codegen:** committed generated types, typed hooks, typed mocks, CI freshness check, cached `vp run gen:api` task.
 - **Playwright e2e** against the mocked dev server, in CI.
+- **Oxlint rule coverage** checked against the Family-Meals ESLint setup; `lint/rules.ts` mirrors it and a test guards it. `jsx-a11y` and TanStack Query rules are opt-in.
 - **Placeholder substitution:** `vp run init` renames the project and prunes unused adapters, verified for `msal/hetzner`, `none/vercel` and `clerk/both`.
 
 ## Next
@@ -19,6 +20,5 @@
 
 ## Open questions
 
-- Oxlint rule coverage versus the ESLint plugins used in past projects (react-hooks, TanStack Query, a11y).
 - Move TypeScript back to 7.x once `openapi-typescript` supports it.
 - Whether to keep `http()` alongside the generated client, or drop it once every project has a spec.

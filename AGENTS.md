@@ -29,6 +29,13 @@ Built-in commands run Vite+ tools. Use `vp run <script>` for `package.json` scri
 - Failed requests throw `HttpError` (status, message, optional code).
 - Do not prefetch in route loaders for routes under `ProtectedRoute`: loaders run before sign-in, so the request would have no token.
 
+## Lint
+
+- Rules live in `lint/rules.ts` and mirror ESLint recommended, typescript-eslint recommended and react-hooks v7 (including the React Compiler rules). Do not weaken them to make code pass; fix the code.
+- Oxlint only runs a plugin's rules when it is listed in `lint.plugins` in `vite.config.ts`. Keep `react` and `typescript` there. `lint/rules.test.ts` fails if those rules go silent.
+- `no-undef` is off on purpose (TypeScript reports undefined names).
+- Optional: add `jsx-a11y` to `lint.plugins` for accessibility rules, or load `@tanstack/eslint-plugin-query` via `jsPlugins` (see the comment in `vite.config.ts`).
+
 ## Copy and styling
 
 - User-visible text goes in `src/i18n/translations.ts`. Add every key to `da` first, then `en` (it is typed against `da`). Never hardcode strings in components.

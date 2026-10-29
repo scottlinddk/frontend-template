@@ -1,0 +1,45 @@
+// Deliberately broken code. lint/rules.test.ts copies this to a temporary .tsx file,
+// lints it with the project config and expects every rule named below to report.
+// It is a .txt file so lint, format and typecheck never see it.
+import { useEffect, useState } from "react";
+
+export function Violations({ on, id }: { on: boolean; id: string }) {
+  if (on) {
+    useState(0); // react/rules-of-hooks
+  }
+  const [data, setData] = useState("");
+  useEffect(() => {
+    setData(id); // react/set-state-in-effect
+  }, []); // react/exhaustive-deps (missing id)
+  const noise = Math.random(); // react/purity
+  return <p>{data + noise}</p>;
+}
+
+export const anything: any = 1; // typescript/no-explicit-any
+
+// @ts-ignore
+export const ignored = 1; // typescript/ban-ts-comment
+
+export function empty() {
+  try {
+    throw new Error("x");
+  } catch {} // eslint/no-empty
+}
+
+export function proto(o: object) {
+  return o.hasOwnProperty("a"); // eslint/no-prototype-builtins
+}
+
+export function sw(x: number) {
+  switch (x) {
+    case 1:
+      const y = 1; // eslint/no-case-declarations
+      return y;
+    default:
+      return 0;
+  }
+}
+
+export function debug() {
+  debugger; // eslint/no-debugger
+}
