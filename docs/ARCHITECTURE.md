@@ -21,6 +21,7 @@
 │   ├── vercel/vercel.json          # copy to the repo root; Vercel only reads it there
 │   └── hetzner/                    # Dockerfile, nginx.conf, compose.yaml
 ├── e2e/                            # Playwright specs
+├── lint/                           # rules.ts (the lint rule set), a regression test and its violations fixture
 ├── openapi/openapi.json            # API contract; replace with your backend's
 ├── scripts/
 │   ├── gen-api.mjs                 # OpenAPI → src/shared/api/schema.d.ts
@@ -105,7 +106,7 @@ All config enters through `shared/config/env.ts` (zod). `VITE_*` values are publ
 
 - Local: `vp check` and `vp test`. Pre-commit runs `vp staged` (`vp check --fix` on staged files).
 - CI: `voidzero-dev/setup-vp` pinned to a commit SHA, then `vp check`, `vp test`, `vp build`, the generated-types check, and Playwright e2e.
-- Oxlint replaces ESLint. Before adopting it for a project, verify rule coverage for react-hooks, TanStack Query and a11y.
+- Oxlint replaces ESLint. `lint/rules.ts` enables the equivalent of `@eslint/js`, typescript-eslint and react-hooks v7 recommended (94 rules, including the React Compiler ones), and `lint/rules.test.ts` fails if the `react` plugin or any of those rules stops reporting. `jsx-a11y` (native) and `@tanstack/eslint-plugin-query` (via `jsPlugins`) are opt-in; see the comment in `vite.config.ts`.
 
 ### Hosting (static output)
 
@@ -153,6 +154,8 @@ Findings from building the template. Each affects how it behaves in CI or for co
 - **`vp create github:` rewrites `vite.config.ts`.** It wraps plugins in `lazyPlugins(...)`. The template already uses it, so scaffolding produces no diff.
 - **Vitest picks up `*.spec.ts` by default.** `test.include` is restricted so Playwright specs are not run by Vitest.
 - **Playwright's browser.** Locally, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a system Chromium if Playwright's download is unavailable. CI uses `playwright install`.
+- **Oxlint did not lint React at all at first.** Rules only run for plugins listed in `lint.plugins`, and the first version of the config did not list `react`, so `rules-of-hooks`, `exhaustive-deps` and every React Compiler rule were silent. Found by comparing against the Family-Meals ESLint setup, and now guarded by `lint/rules.test.ts`.
+- **Oxlint coverage of the Family-Meals ESLint rules (Oxlint 1.89, ESLint 10.13, react-hooks 7.1.1, typescript-eslint 8.72):** 99 rules resolved; 95 have a native Oxlint equivalent (core 61 of 63, typescript-eslint 20 of 20, react-hooks 14 of 16). The four without one are `no-dupe-args` and `no-octal` (syntax errors in ES modules) and `react-hooks/config` and `gating` (compiler config messages). On about 35 deliberate violations ESLint reported 25 findings and the configured Oxlint reported all 25. Known differences: ESLint flags the `catch` after `try { return <JSX/> }` as unreachable and Oxlint does not; Oxlint also runs its own default correctness rules (for example `no-eval`). The React Compiler rules `globals`, `preserve-manual-memoization` and `unsupported-syntax` could not be triggered in ESLint either, so their parity is unproven.
 - **Verified:** `vp check`, `vp test`, `vp build`, Playwright e2e, and `vp run init` for `msal/hetzner`, `none/vercel` and `clerk/both` (each followed by check, test and build). **Not verified:** the MSAL and Clerk adapters against real tenants, the Docker image (no daemon in the build environment), the Vercel deployment, and the CI workflow's first GitHub run.
 
 ### Where the patterns came from
