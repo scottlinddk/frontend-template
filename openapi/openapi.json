@@ -1,0 +1,88 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Template items API",
+    "version": "1.0.0",
+    "description": "Sample contract that the template's example feature and mock handlers are typed against. Replace it with your backend's spec (see scripts/gen-api.mjs)."
+  },
+  "servers": [{ "url": "/api" }],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "listItems",
+        "summary": "List items",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "All items",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Item" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "operationId": "createItem",
+        "summary": "Create an item",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/NewItem" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created item",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Item" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "Item": {
+        "type": "object",
+        "required": ["id", "title"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" }
+        }
+      },
+      "NewItem": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error response",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } }
+        }
+      }
+    }
+  }
+}

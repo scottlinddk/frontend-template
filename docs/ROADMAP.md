@@ -1,34 +1,24 @@
 # Roadmap
 
-## Phase 1: Core skeleton (done)
+## Done
 
-- `vp create` compatible app with `vite.config.ts`, strict TS, Tailwind v4.
-- CI (`setup-vp`), Dependabot, pre-commit hook, `AGENTS.md`.
-- Done when: `vp install && vp check && vp test && vp build` pass on a clean clone.
+- **Core:** Vite+ app, strict TypeScript, Tailwind v4, CI (pinned `setup-vp`), Dependabot, pre-commit hook, `AGENTS.md`.
+- **Foundations:** providers, React Router v8 data mode, validated env, HTTP layer, Vitest and MSW, one example feature.
+- **Adapters:** auth (none, MSAL, Clerk) behind `AuthPort`; deploy targets for Vercel and Hetzner.
+- **Patterns from past projects:** Danish-first i18n, light/dark theme, route progress and error boundaries, shared `queryClient`, `HttpError`.
+- **OpenAPI codegen:** committed generated types, typed hooks, typed mocks, CI freshness check, cached `vp run gen:api` task.
+- **Playwright e2e** against the mocked dev server, in CI.
+- **Placeholder substitution:** `vp run init` renames the project and prunes unused adapters, verified for `msal/hetzner`, `none/vercel` and `clerk/both`.
 
-## Phase 2: Foundations (done)
+## Next
 
-- Providers, router (data mode), `env.ts`, http client.
-- Vitest and MSW setup, render helpers, one example feature with query, mutation and test.
-- Done when: the example feature shows the full pattern including a test.
-
-## Phase 3: Adapters and modules (partly done)
-
-- Done: `AuthPort` with none, MSAL and Clerk adapters (not tested against real tenants).
-- Done: deploy targets for Vercel and Hetzner (Docker and nginx). Untested on real hosts.
-- Todo (optional): OpenAPI codegen, i18n (da/en), Playwright, React Compiler toggle.
-
-## Phase 4: Distribution
-
-- Decide the scaffolding mechanism:
-  1. `vp create github:scottlinddk/frontend-template` plus a post-create script, or
-  2. a Bingo generator, or
-  3. an `@scottlinddk/create` package with a `createConfig.templates` manifest.
-- Verify how `github:` templates handle placeholders before choosing.
+- Run the MSAL and Clerk adapters against real tenants.
+- Build and run the Hetzner container once, and deploy once to Vercel.
+- Publish an `@scottlinddk/create` package with a `createConfig.templates` manifest, so `vp create @scottlinddk` can prompt for options directly instead of needing `vp run init`.
+- Optional modules: React Compiler toggle, Storybook, plural and date formatting helpers.
 
 ## Open questions
 
-- Which past repositories should be mined for patterns? None have been reviewed yet.
-- Oxlint rule coverage versus the ESLint plugins used in past projects.
-- Generated API code: committed or generated on install?
-- How the unused auth or deploy adapter is removed at scaffold time.
+- Oxlint rule coverage versus the ESLint plugins used in past projects (react-hooks, TanStack Query, a11y).
+- Move TypeScript back to 7.x once `openapi-typescript` supports it.
+- Whether to keep `http()` alongside the generated client, or drop it once every project has a spec.

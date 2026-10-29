@@ -8,6 +8,7 @@ React + TypeScript SPA on Vite+ (`vp`). Read `docs/ARCHITECTURE.md` before struc
 - `vp test` unit and component tests
 - `vp build` production build
 - `vp dev` dev server (MSW mocks on by default via `.env.development`)
+- `vp run e2e` Playwright tests, `vp run gen:api` regenerate API types
 
 Built-in commands run Vite+ tools. Use `vp run <script>` for `package.json` scripts.
 
@@ -22,14 +23,25 @@ Built-in commands run Vite+ tools. Use `vp run <script>` for `package.json` scri
 
 ## Data
 
-- Server state uses TanStack Query v5: a key factory and `queryOptions()` per feature.
-- HTTP goes through `shared/lib/http.ts` with a zod `schema`, so responses are validated.
+- Server state uses TanStack Query v5 with the shared `queryClient` from `@/shared/lib/queryClient`.
+- If the backend publishes OpenAPI, use `$api` from `@/shared/api` (typed hooks and `queryOptions`). Update `openapi/openapi.json`, run `vp run gen:api`, and commit the regenerated `schema.d.ts`. Never edit it by hand.
+- If there is no spec, use `http()` from `shared/lib/http.ts` with a zod `schema`.
+- Failed requests throw `HttpError` (status, message, optional code).
+- Do not prefetch in route loaders for routes under `ProtectedRoute`: loaders run before sign-in, so the request would have no token.
+
+## Copy and styling
+
+- User-visible text goes in `src/i18n/translations.ts`. Add every key to `da` first, then `en` (it is typed against `da`). Never hardcode strings in components.
+- Use semantic color tokens (`bg-surface`, `text-ink`, `text-ink-muted`, `ring-line`, `brand-*`), not raw palette colors, so dark mode works without per-component variants.
+- Animations must respect `prefers-reduced-motion`. Link between routes with `viewTransition`.
 
 ## Testing
 
 - Tests sit next to the code (`*.test.ts(x)`). Import test APIs from `vite-plus/test`.
 - Network is mocked with MSW (`src/mocks`). Unhandled requests fail the test.
-- Wrap components with `renderWithProviders` from `@/test/render`.
+- Wrap components with `renderWithProviders` from `@/test/render` (English by default, pass `language: "da"` to test Danish).
+- Mock handlers in `src/mocks` are typed against the generated schema. Keep them in step with the contract.
+- E2E specs live in `e2e/` and run against the dev server with mocks. Do not hardcode the app title in them.
 
 ## Dependencies
 
