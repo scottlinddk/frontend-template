@@ -74,3 +74,12 @@ The dev server mocks the API in the browser (MSW), so it runs without a backend.
 | `vp run init`    | Turn a fresh copy into a project (template only)     |
 
 Copy `src/features/items` to start a new feature.
+
+## Demo site
+
+The template deploys itself as a public demo, so it cannot drift from `main`. `vp run build:demo` builds with `--mode demo` (`.env.demo`): a normal static build with the MSW mocks bundled and `auth=none`. Any other build leaves the mock worker out, even if `VITE_ENABLE_MSW=true`.
+
+- **Hosting:** import this repository in Vercel. The root `vercel.json` sets the build command and the SPA rewrite. Production deploys `main`, pull requests get preview URLs.
+- **CI:** the `demo` job runs the Playwright specs against `vp preview` of that same build.
+- **Post-deploy check:** `E2E_BASE_URL=https://<demo-url> vp run e2e` runs the specs against a live URL.
+- **Projects:** `vp run init` removes `vercel.json`, `.env.demo` and `build:demo`, so none of this reaches a generated project.

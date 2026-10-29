@@ -1,7 +1,11 @@
+/// <reference types="node" />
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 4173;
-const baseURL = `http://127.0.0.1:${port}`;
+// E2E_BASE_URL: smoke-test an already deployed site, no local server.
+// E2E_TARGET=demo: smoke-test the production demo build, served by `vp preview`.
+const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+const demo = process.env.E2E_TARGET === "demo";
 
 export default defineConfig({
   testDir: "e2e",
@@ -18,10 +22,14 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   // The dev server enables the MSW browser worker (see .env.development), so
   // e2e runs without a backend and shares its handlers with the unit tests.
-  webServer: {
-    command: `vp dev --host 127.0.0.1 --port ${port} --strictPort`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: demo
+          ? `vp run build:demo && vp preview --host 127.0.0.1 --port ${port} --strictPort`
+          : `vp dev --host 127.0.0.1 --port ${port} --strictPort`,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });
