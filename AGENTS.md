@@ -29,6 +29,10 @@ Built-in commands run Vite+ tools. Use `vp run <script>` for `package.json` scri
 - Failed requests throw `HttpError` (status, message, optional code).
 - Do not prefetch in route loaders for routes under `ProtectedRoute`: loaders run before sign-in, so the request would have no token.
 
+## File size
+
+- Pre-commit rejects any staged file above 5,000 tokens (bytes / 4, so about 20 KB). Split it as the error message says. Never bypass with `--no-verify`. Generated files and lockfiles are exempt via `IGNORED` in `scripts/file-size-lib.mjs`.
+
 ## Lint
 
 - Rules live in `lint/rules.ts` and mirror ESLint recommended, typescript-eslint recommended and react-hooks v7 (including the React Compiler rules). Do not weaken them to make code pass; fix the code.

@@ -15,7 +15,7 @@
 ├── .github/
 │   ├── workflows/ci.yml            # verify, e2e (and, in the template only, init smoke tests)
 │   └── dependabot.yml              # github-actions + npm
-├── .vite-hooks/pre-commit          # `vp staged`
+├── .vite-hooks/pre-commit          # `vp staged`, then the file size check
 ├── AGENTS.md                       # conventions for coding agents
 ├── deploy/
 │   ├── vercel/vercel.json          # copy to the repo root; Vercel only reads it there
@@ -24,6 +24,8 @@
 ├── lint/                           # rules.ts (the lint rule set), a regression test and its violations fixture
 ├── openapi/openapi.json            # API contract; replace with your backend's
 ├── scripts/
+│   ├── check-file-size.mjs         # pre-commit: rejects staged files over 5,000 tokens
+│   ├── file-size-lib.mjs           # size limit, ignore list and split instructions (unit tested)
 │   ├── gen-api.mjs                 # OpenAPI → src/shared/api/schema.d.ts
 │   └── init.mjs                    # template only: rename, pick auth and deploy, then self-delete
 ├── playwright.config.ts
@@ -104,7 +106,7 @@ All config enters through `shared/config/env.ts` (zod). `VITE_*` values are publ
 
 ### Quality gates
 
-- Local: `vp check` and `vp test`. Pre-commit runs `vp staged` (`vp check --fix` on staged files).
+- Local: `vp check` and `vp test`. Pre-commit runs `vp staged` (`vp check --fix` on staged files), then `scripts/check-file-size.mjs`, which rejects any staged file above 5,000 tokens (bytes / 4, measured on the staged content). Lockfiles, codegen and binary assets are skipped; extend `IGNORED` in `scripts/file-size-lib.mjs` for other generated files. The error message says how to split the file.
 - CI: `voidzero-dev/setup-vp` pinned to a commit SHA, then `vp check`, `vp test`, `vp build`, the generated-types check, and Playwright e2e.
 - Oxlint replaces ESLint. `lint/rules.ts` enables the equivalent of `@eslint/js`, typescript-eslint and react-hooks v7 recommended (94 rules, including the React Compiler ones), and `lint/rules.test.ts` fails if the `react` plugin or any of those rules stops reporting. `jsx-a11y` (native) and `@tanstack/eslint-plugin-query` (via `jsPlugins`) are opt-in; see the comment in `vite.config.ts`.
 
