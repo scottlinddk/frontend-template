@@ -11,5 +11,5 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
 
-allowBuilds:
-  "@clerk/shared": false
+allowBuilds: # @adapter clerk
+  "@clerk/shared": false # @adapter clerk

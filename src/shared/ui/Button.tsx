@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 
 const variants = {
   primary: "bg-brand-600 text-white hover:bg-brand-700",
-  secondary: "bg-white text-slate-900 ring-1 ring-slate-300 hover:bg-slate-100",
+  secondary: "bg-surface-raised text-ink ring-1 ring-line hover:bg-surface",
 } as const;
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

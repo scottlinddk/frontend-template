@@ -12,10 +12,10 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 ARG VITE_API_BASE_URL=/api
 ARG VITE_AUTH_PROVIDER=none
-ARG VITE_MSAL_CLIENT_ID
-ARG VITE_MSAL_AUTHORITY
-ARG VITE_MSAL_SCOPES
-ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_MSAL_CLIENT_ID # @adapter msal
+ARG VITE_MSAL_AUTHORITY # @adapter msal
+ARG VITE_MSAL_SCOPES # @adapter msal
+ARG VITE_CLERK_PUBLISHABLE_KEY # @adapter clerk
 RUN pnpm exec vp build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine

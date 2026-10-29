@@ -4,117 +4,168 @@
 
 1. **Feature-first.** Code is grouped by domain, not by file type.
 2. **Strict boundaries.** Features never import from other features. Everything is imported through a folder's `index.ts`.
-3. **Separation of concerns.** Logic lives in hooks and `shared/lib`, UI in components, styling in Tailwind tokens (`src/styles`).
+3. **Separation of concerns.** Logic lives in hooks and `shared/lib`, UI in components, styling in Tailwind tokens (`src/styles`), copy in `src/i18n`.
 4. **Adapters at the edges.** Auth and hosting are replaceable without touching features.
 5. **One toolchain.** All tooling is configured in `vite.config.ts`. CI runs the same `vp` commands as local.
 
 ## File tree
 
 ```
-frontend-template/
+.
 ├── .github/
-│   ├── workflows/ci.yml            # setup-vp (pinned commit SHA) → vp check / test / build
+│   ├── workflows/ci.yml            # verify, e2e (and, in the template only, init smoke tests)
 │   └── dependabot.yml              # github-actions + npm
 ├── .vite-hooks/pre-commit          # `vp staged`
-├── .vscode/extensions.json
 ├── AGENTS.md                       # conventions for coding agents
 ├── deploy/
-│   ├── vercel/vercel.json          # SPA rewrite + cache + security headers
+│   ├── vercel/vercel.json          # copy to the repo root; Vercel only reads it there
 │   └── hetzner/                    # Dockerfile, nginx.conf, compose.yaml
-├── public/                         # favicon, MSW service worker
-├── index.html
-├── vite.config.ts                  # vite + react + tailwind + test + lint + fmt + staged
-├── tsconfig.json                   # strict, alias @/* → src/*
+├── e2e/                            # Playwright specs
+├── openapi/openapi.json            # API contract; replace with your backend's
+├── scripts/
+│   ├── gen-api.mjs                 # OpenAPI → src/shared/api/schema.d.ts
+│   └── init.mjs                    # template only: rename, pick auth and deploy, then self-delete
+├── playwright.config.ts
+├── vite.config.ts                  # vite + react + tailwind + test + lint + fmt + staged + run tasks
 ├── pnpm-workspace.yaml             # vite-plus catalog, install policy
-├── .env.example / .env.development
 └── src/
     ├── main.tsx                    # bootstrap only
     ├── app/                        # composition root, no business logic
-    │   ├── providers/              # QueryClient + AuthProvider
-    │   ├── router/                 # route tree, lazy routes
-    │   └── layouts/
+    │   ├── providers/              # I18n, Theme, QueryClient, Auth
+    │   ├── router/                 # route tree
+    │   └── layouts/                # RootLayout, RouteProgress, RouteErrorBoundary
     ├── features/
     │   └── items/                  # example feature: the pattern to copy
-    │       ├── api/                # query key factory, queryOptions(), mutation
+    │       ├── api/                # query options and mutation hooks
     │       ├── components/
     │       ├── routes/             # lazy route component + test
-    │       ├── types.ts            # zod schemas and inferred types
+    │       ├── types.ts            # types taken from the generated schema
     │       └── index.ts            # the feature's public API
+    ├── i18n/                       # translations (da is the source of truth), provider, language switcher
     ├── shared/
-    │   ├── auth/                   # AuthPort, AuthProvider, RequireAuth, adapters (none | msal | clerk)
-    │   ├── ui/                     # design-system primitives
-    │   ├── lib/                    # http client (zod-validated responses)
-    │   └── config/env.ts           # zod-validated env, fails fast
-    ├── styles/                     # Tailwind v4 entry, theme tokens (@theme)
-    ├── mocks/                      # MSW handlers, browser worker, node server
+    │   ├── api/                    # generated schema + typed client ($api)
+    │   ├── auth/                   # AuthPort, AuthProvider, ProtectedRoute, adapters (none | msal | clerk)
+    │   ├── config/                 # env.ts (zod, fails fast), app.ts (APP_ID)
+    │   ├── lib/                    # http() with zod validation, HttpError, shared queryClient
+    │   ├── theme/                  # ThemeProvider, ThemeToggle
+    │   └── ui/                     # design-system primitives
+    ├── styles/                     # Tailwind v4 entry, semantic color tokens, motion
+    ├── mocks/                      # MSW handlers (typed against the schema), browser worker, node server
     └── test/                       # setup, render helper
 ```
 
-Not built yet: `i18n/`, `shared/hooks`, OpenAPI codegen, Playwright e2e. See the roadmap.
+Dependency direction: `i18n` and `shared/config` import nothing from the app. `shared` may import `i18n`. Features import `shared` and `i18n`. `app` composes everything.
 
 ## Key decisions
 
 ### Router
 
-React Router v7 in **data/library mode** (`createBrowserRouter`) so the build stays a plain Vite SPA. Framework mode ships its own Vite plugin and server runtime. Compatibility with `vp build` is unverified and not needed for a static output.
+React Router v8 in **data/library mode** (`createBrowserRouter`), so the build stays a plain Vite SPA. In v8, `RouterProvider` is imported from `react-router/dom` and `react-router-dom` no longer exists. Routes load lazily (`lazy` returns `{ Component }`), and each lazy route has its own `ErrorBoundary`. `RouteProgress` shows a bar while navigation is in flight, and links pass `viewTransition` for a cross-fade.
+
+**Loaders and auth.** Prefetching with a loader (`queryClient.ensureQueryData(itemsQueryOptions())`) is good for public data. Do not do it for routes under `ProtectedRoute`. Loaders start when the router is created, before the user is signed in, so the request would go out without a token. Protected routes fetch inside the component with `useSuspenseQuery`, as `items` does.
 
 ### Server state
 
-TanStack Query v5. Each feature owns a key factory and `queryOptions()` factories, so routes can prefetch in loaders and components consume the same options.
+TanStack Query v5 with one shared `queryClient` (`shared/lib/queryClient.ts`). It does not retry 4xx errors, and signing out clears the cache so the next user never sees the previous user's data.
 
-### API client
+### API client: two paths
 
-Not built yet. Today `shared/lib/http.ts` validates every response against a zod schema. Planned: generate the client from the backend's OpenAPI document (`openapi-typescript` or Orval) as a cached `vp run` task. Whether generated code is committed is still open.
+1. **Backend publishes OpenAPI (preferred).** `vp run gen:api` generates `src/shared/api/schema.d.ts` with `openapi-typescript` from `openapi/openapi.json`, or from any URL via `OPENAPI_SPEC=https://host/openapi.json`. `$api` (openapi-fetch + openapi-react-query) gives typed hooks and `queryOptions` for every operation. The generated file is committed, so installs need no network and API changes show up in review. CI re-runs the task and fails if the file is stale. The task is cached by Vite Task.
+2. **No spec.** `http()` in `shared/lib/http.ts` validates every response against a zod schema.
+
+Both attach the bearer token, and both throw `HttpError` (status, message, optional `code` from an `{ error, code }` body), so error handling and the retry policy are uniform. MSW handlers are typed against the generated schema, so a contract change breaks type-checking in the mocks.
 
 ### Auth: one port, three adapters
 
-`shared/auth` exposes an `AuthPort`: `useAuth()` (user, status, signIn, signOut), `getAccessToken()` and a route guard. Two adapters implement it:
+`shared/auth` exposes an `AuthPort`: `useAuth()` (user, status, signIn, signOut), `getAccessToken()` and `ProtectedRoute`. Adapters implement it:
 
-- **MSAL** (`@azure/msal-browser` and `@azure/msal-react`) for Entra ID.
+- **none**: a fixed local user, for development.
+- **MSAL** (`@azure/msal-browser`, `@azure/msal-react`) for Entra ID.
 - **Clerk** (`@clerk/clerk-react`).
 
-Features only depend on the port. Shipping both adapters bloats the app and the dependency tree, so the scaffold keeps one and removes the other. How that selection works depends on the scaffolding mechanism (see roadmap). For a pure SPA, tokens are held in the browser, so token-bearing calls to your own API must be validated server-side.
+Each adapter is its own lazy chunk, so only the selected one is downloaded. Adapter-specific lines carry `@adapter <name>` tags, which `vp run init` uses to remove the adapters a project does not need, along with their dependencies. For a pure SPA, tokens are held in the browser, so calls to your own API must be validated server-side.
+
+### i18n
+
+Danish is the default and the source of truth. `en` is typed against `da`, so a missing key in either language fails type-checking. Placeholders use `{name}`. Lookups fall back to English, then to the key. The choice persists in `localStorage` and sets `<html lang>`. There is no i18n library, so the cost is a few hundred bytes. Add plural or date formatting with `Intl` when a project needs it.
+
+### Theme
+
+Light and dark via a class on `<html>`. A script in `index.html` applies the saved theme before first paint to avoid a flash (keep its storage key in sync with `ThemeProvider`). Components use semantic tokens (`bg-surface`, `text-ink`, `ring-line`) defined as CSS variables, never raw palette colors, so dark mode needs no per-component variants.
 
 ### Styling
 
-Tailwind v4 with CSS-first config (`@theme` tokens in `src/styles`). No component library by default. `shared/ui` holds a small set of primitives built on the tokens. Variants via a class-variance utility are optional.
+Tailwind v4 with CSS-first config (`@theme` in `src/styles`). No component library by default. `shared/ui` holds small primitives built on the tokens. Animations respect `prefers-reduced-motion`.
 
 ### Environment
 
-All config enters through `shared/config/env.ts` (zod). `VITE_*` values are public and end up in the bundle, so no secrets belong there. Hosting-specific values (for example API base URL) differ per environment.
+All config enters through `shared/config/env.ts` (zod). `VITE_*` values are public and end up in the bundle, so no secrets belong there. Required variables per auth provider are declared once in `shared/auth/providers.ts`.
 
 ### Quality gates
 
 - Local: `vp check` and `vp test`. Pre-commit runs `vp staged` (`vp check --fix` on staged files).
-- CI: `voidzero-dev/setup-vp` at an exact version, then `vp check`, `vp test`, `vp build`, plus a Vite Task cache.
-- Oxlint replaces ESLint. Before adopting, verify rule coverage for react-hooks, TanStack Query and a11y. Add a gap list to this doc if any are missing.
+- CI: `voidzero-dev/setup-vp` pinned to a commit SHA, then `vp check`, `vp test`, `vp build`, the generated-types check, and Playwright e2e.
+- Oxlint replaces ESLint. Before adopting it for a project, verify rule coverage for react-hooks, TanStack Query and a11y.
 
 ### Hosting (static output)
 
 `vp build` produces `dist/`.
 
-- **Vercel:** `vercel.json` with a catch-all rewrite to `/index.html`, immutable caching for hashed assets, and security headers.
-- **Hetzner:** multi-stage Dockerfile (build with Vite+, serve with nginx or Caddy), SPA fallback, gzip/brotli, the same cache and security headers, healthcheck. TLS terminates at a reverse proxy or Caddy.
-
-Both targets live under `deploy/`. A project keeps one.
+- **Vercel:** `vercel.json` with a catch-all rewrite to `/index.html`, immutable caching for hashed assets and security headers. It must sit in the repo root. `vp run init` moves it there.
+- **Hetzner:** multi-stage Dockerfile (build with Vite+, serve with unprivileged nginx), SPA fallback, gzip, the same cache and security headers, and a healthcheck. TLS terminates at a reverse proxy.
 
 ### Testing
 
-- Unit and component: Vitest and Testing Library.
-- Network: MSW handlers shared between tests and, optionally, the dev server.
-- E2E: Playwright against `vp preview` or the container.
+- Unit and component: Vitest and Testing Library, next to the code.
+- Network: MSW handlers shared between unit tests and the dev server (the browser worker is dev-only).
+- E2E: Playwright against the dev server, which serves the mocked API. Specs avoid hardcoding the app title so they survive `vp run init`.
+
+<!-- @template-start -->
+
+## Starting a project from the template
+
+```bash
+vp create github:scottlinddk/frontend-template   # clones into ./frontend-template and installs
+cd frontend-template
+vp run init                                      # prompts, or pass --name --title --auth --deploy --yes
+```
+
+`vp create` has no placeholder support for `github:` templates: it clones with `degit`, installs, and always uses the repository name as the folder. `init` fills that gap. It sets the project id (package name, storage keys), the page title and UI title, keeps one auth adapter and one deploy target, removes the unused dependencies, writes a project README, strips template-only material, and deletes itself.
+
+<!-- @template-end -->
 
 ## Version policy
 
 Pin `vite-plus` and `setup-vp` to exact versions. Dependabot proposes bumps. The `v1` tag of `setup-vp` no longer receives updates, so it must not be used.
 
+<!-- @template-start -->
+
 ## Implementation notes
 
-Findings from building the template. Each affects how it behaves in CI.
+Findings from building the template. Each affects how it behaves in CI or for contributors.
 
 - **pnpm 12 enforces a minimum release age.** `vp install` rejects lockfile entries published within about a day. Generate the lockfile with the `vp`-managed pnpm (`vp install`), not a globally installed older pnpm, or CI fails.
-- **pnpm 12 fails on unapproved install scripts.** `@clerk/shared` has one (telemetry notice), denied via `allowBuilds` in `pnpm-workspace.yaml`. New dependencies with install scripts need an explicit decision.
+- **pnpm 12 lockfiles have two YAML documents.** pnpm 10 cannot read them. Always use `vp install`.
+- **pnpm 12 fails on unapproved install scripts.** `@clerk/shared` has one (telemetry notice), denied via `allowBuilds`. New dependencies with install scripts need an explicit decision.
+- **TypeScript is pinned to 6.0.x.** `openapi-typescript` 7 uses the TypeScript compiler API, which TypeScript 7 does not expose, and its peer range stops at 5.x. A pnpm override cannot fix a peer dependency. Type-checking in `vp check` is unaffected. Revisit when `openapi-typescript` supports TypeScript 7.
+- **`openapi-fetch` captures `fetch` at creation.** That bypasses MSW. The client passes `fetch: (request) => globalThis.fetch(request)` to resolve it per request.
 - **MSW 3 renamed `onUnhandledRequest` to `onUnhandledFrame`.**
-- **MSW is dev-only.** `main.tsx` guards the dynamic import with `import.meta.env.DEV`, so the worker is not in the production bundle. `public/mockServiceWorker.js` is still copied into `dist/` and is inert.
-- **All three auth adapters are separate chunks.** Only the selected one is downloaded, but all auth packages remain in `package.json` until a project removes the ones it does not use.
-- **Verified:** `vp check`, `vp test`, `vp build`, and a browser run of the dev server (routing, mocked API, add item, deep link). **Not verified:** the MSAL and Clerk adapters against real tenants, the Docker image (no daemon in the build environment), the Vercel deployment, and the CI workflow (it only runs on GitHub).
+- **`vp create github:` rewrites `vite.config.ts`.** It wraps plugins in `lazyPlugins(...)`. The template already uses it, so scaffolding produces no diff.
+- **Vitest picks up `*.spec.ts` by default.** `test.include` is restricted so Playwright specs are not run by Vitest.
+- **Playwright's browser.** Locally, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a system Chromium if Playwright's download is unavailable. CI uses `playwright install`.
+- **Verified:** `vp check`, `vp test`, `vp build`, Playwright e2e, and `vp run init` for `msal/hetzner`, `none/vercel` and `clerk/both` (each followed by check, test and build). **Not verified:** the MSAL and Clerk adapters against real tenants, the Docker image (no daemon in the build environment), the Vercel deployment, and the CI workflow's first GitHub run.
+
+### Where the patterns came from
+
+| Pattern                                                                                                               | Source project                 |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Danish default, `en` typed against `da`, `{name}` placeholders, language in `<html lang>`                             | BoligData, Family-Meals        |
+| Light/dark `ThemeProvider` with pre-paint script                                                                      | BoligData                      |
+| Shared `queryClient`, `lazy` returning `Component`, per-route `ErrorBoundary`, loader prefetch with `ensureQueryData` | Tredjekort                     |
+| `RouteProgress`, `viewTransition` links, reduced-motion guards                                                        | Family-Meals                   |
+| Typed API error with status and code, no retry on 4xx, 204 handling, clear cache on sign-out                          | ESP32 e-ink system             |
+| OpenAPI document as the contract, generated types committed and refreshed in CI                                       | ESP32 e-ink system, Tredjekort |
+| Playwright-style smoke tests that never touch a real backend                                                          | BoligData                      |
+| Oxlint + Vite 8 + React Router data mode + `@vitejs/plugin-react` 6                                                   | Tredjekort                     |
+
+<!-- @template-end -->

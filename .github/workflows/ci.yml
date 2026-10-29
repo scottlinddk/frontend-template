@@ -25,3 +25,46 @@ jobs:
       - run: vp check
       - run: vp test
       - run: vp build
+      # The committed API types must match the OpenAPI document.
+      - run: vp run gen:api
+      - run: git diff --exit-code -- src/shared/api/schema.d.ts
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  # @template-start
+  # Scaffolds the template with every auth option and verifies the result.
+  init:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { auth: none, deploy: vercel }
+          - { auth: msal, deploy: hetzner }
+          - { auth: clerk, deploy: both }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp run init --name acme-portal --title "Acme Portal" --auth ${{ matrix.auth }} --deploy ${{ matrix.deploy }} --yes
+      - run: vp check
+      - run: vp test
+      - run: vp build
+  # @template-end
